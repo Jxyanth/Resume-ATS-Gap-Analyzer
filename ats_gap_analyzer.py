@@ -43,7 +43,7 @@ logger = logging.getLogger("ATSGapAnalyzer")
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 # Sentence-transformer model for semantic similarity
-SEMANTIC_MODEL_ID: str = "0xnbk/nbk-ats-semantic-v1-en"
+SEMANTIC_MODEL_ID: str = "sentence-transformers/all-MiniLM-L6-v2"
 
 # HuggingFace token-classification model for NER
 NER_MODEL_ID: str = "yashpwr/resume-ner-bert-v2"
@@ -65,6 +65,32 @@ OTHER_CATEGORY: str = "other"
 
 # Minimum NER confidence score to consider an entity valid
 MIN_NER_SCORE: float = 0.50
+
+_SKILL_BOUNDARY_WORDS = {
+    "a", "an", "and", "as", "at", "by", "for", "from", "in", "include",
+    "includes", "including", "of", "on", "or", "the", "to", "with",
+}
+_SKILL_NOISE_WORDS = {
+    "concept", "concepts", "dataset", "datasets", "learning", "manage",
+    "manages", "managed", "managing", "manager", "managers", "responsibility",
+    "responsibilities", "requirement", "requirements", "skill", "skills",
+    "model", "models", "solution", "solutions", "work", "working", "develop", "develops",
+    "developed", "developing",
+}
+_SKILL_NOISE_PHRASES = {
+    "bachelor", "bachelor's", "bachelors", "master", "master's", "masters",
+    "associate degree", "bachelor degree", "bachelor's degree", "master degree",
+    "master's degree", "vp", "vice president",
+}
+_INCOMPLETE_DEGREE_PHRASES = {
+    "associate", "associate's", "associates", "bachelor", "bachelor's",
+    "bachelors", "master", "master's", "masters",
+}
+_DEGREE_MARKERS = {
+    "associate", "bachelor", "bachelors", "certificate", "degree", "diploma",
+    "doctor", "doctorate", "mba", "master", "masters", "phd",
+}
+_ENTITY_BOUNDARY_WORDS = {"a", "an", "and", "for", "of", "or", "the", "to"}
 
 # Maximum number of words an entity may have before we try to split it.
 # The NER model sometimes labels multi-sentence chunks as one entity.
@@ -116,7 +142,9 @@ def _clean_entity(entity_word: str) -> str:
     Returns:
         Cleaned, lowercase entity string, or empty string if invalid.
     """
-    cleaned = entity_word.lower().strip()
+    normalized = entity_word.replace("’", "'").replace("‘", "'")
+    normalized = re.sub(r"\s*'\s*", "'", normalized)
+    cleaned = normalized.lower().strip()
     # Strip leading/trailing punctuation
     cleaned = cleaned.strip(string.punctuation + " ")
     # Collapse internal whitespace
@@ -169,6 +197,76 @@ def _split_and_filter_entity(raw_word: str) -> List[str]:
         fragments.append(frag)
 
     return fragments
+
+
+def _split_and_filter_skill(raw_word: str) -> List[str]:
+    """Split skill-tagged spans and discard obvious prose, title, and degree noise."""
+    normalized = raw_word.replace("’", "'").replace("‘", "'")
+    fragments = re.split(
+        r"[,;|/\n\t]|\s*[\u2022\u2013\u2014]\s*|\s+\b(?:and|or)\b\s+",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    skills: List[str] = []
+    boundary_words = _SKILL_BOUNDARY_WORDS | {
+        "develop", "developed", "developing", "develops", "work", "working",
+    }
+    valid_learning_phrases = {
+        "deep learning", "machine learning", "reinforcement learning",
+        "supervised learning", "transfer learning", "unsupervised learning",
+    }
+
+    for fragment in fragments:
+        words = _clean_entity(fragment).split()
+        while words and words[0] in boundary_words:
+            words.pop(0)
+        while words and words[-1] in _SKILL_BOUNDARY_WORDS:
+            words.pop()
+        if not words or len(words) > MAX_ENTITY_WORDS:
+            continue
+
+        candidate = " ".join(words)
+        if candidate in valid_learning_phrases:
+            skills.append(candidate)
+            continue
+        if candidate in _SKILL_NOISE_PHRASES:
+            continue
+        if any(word in _SKILL_NOISE_WORDS for word in words):
+            continue
+        if any(
+            noise_phrase in candidate
+            for noise_phrase in ("responsibilit", "requirement", "bachelor", "master")
+        ):
+            continue
+
+        skills.append(candidate)
+
+    return skills
+
+
+def _filter_category_entity(category: str, candidates: List[str]) -> List[str]:
+    """Apply category-specific checks to prevent noisy NER spans leaking into gaps."""
+    filtered: List[str] = []
+    for candidate in candidates:
+        words = candidate.split()
+        while words and words[-1] in _ENTITY_BOUNDARY_WORDS:
+            words.pop()
+        cleaned = " ".join(words)
+        if not cleaned:
+            continue
+        if any("responsibilit" in word or "requirement" in word for word in words):
+            continue
+
+        if category == "degrees":
+            if cleaned in _INCOMPLETE_DEGREE_PHRASES:
+                continue
+            if not any(
+                word.strip(string.punctuation) in _DEGREE_MARKERS for word in words
+            ):
+                continue
+
+        filtered.append(cleaned)
+    return filtered
 
 
 def _cosine_similarity(u: np.ndarray, v: np.ndarray) -> float:
@@ -476,7 +574,7 @@ class ATSGapAnalyzer:
         """
         Compute the semantic ATS compatibility score between a resume and JD.
 
-        Uses ``0xnbk/nbk-ats-semantic-v1-en`` to generate 768-dimensional
+        Uses ``sentence-transformers/all-MiniLM-L6-v2`` to generate 384-dimensional
         embeddings and calculates cosine similarity.
 
         Args:
@@ -528,7 +626,7 @@ class ATSGapAnalyzer:
         Extract structured named entities from text using the NER pipeline.
 
         Runs ``yashpwr/resume-ner-bert-v2`` with ``aggregation_strategy="simple"``
-        and organises results into category buckets (skills, designations, degrees).
+        and filters noisy skill spans before categorizing the results.
 
         Args:
             text: Plain-text string to run NER on.
@@ -571,9 +669,13 @@ class ATSGapAnalyzer:
                 word: str = entity.get("word", "")
                 category = ENTITY_LABEL_MAP.get(label, OTHER_CATEGORY)
 
-                # Split oversized spans and filter noise before adding to set
-                for token in _split_and_filter_entity(word):
-                    categories[category].add(token)
+                if category == "skills":
+                    tokens = _split_and_filter_skill(word)
+                else:
+                    tokens = _split_and_filter_entity(word)
+                categories[category].update(
+                    _filter_category_entity(category, tokens)
+                )
 
         except Exception as exc:
             raise RuntimeError(f"NER entity extraction failed: {exc}") from exc

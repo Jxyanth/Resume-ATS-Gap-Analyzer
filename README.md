@@ -19,8 +19,8 @@ A production-grade Python tool that evaluates a **resume** against a **job descr
 │                              │                                      │
 │              ┌───────────────┴──────────────┐                       │
 │              ▼                              ▼                       │
-│   Semantic Similarity Engine       NER Entity Extraction            │
-│   (0xnbk/nbk-ats-semantic-v1-en)  (yashpwr/resume-ner-bert-v2)    │
+│   Semantic Similarity Engine       Resume NER & Skill Cleanup        │
+│   (all-MiniLM-L6-v2)               (resume-ner)                     │
 │              │                              │                       │
 │              ▼                              ▼                       │
 │   ATS Compatibility Score      E_Resume / E_JD Entity Sets         │
@@ -40,8 +40,8 @@ A production-grade Python tool that evaluates a **resume** against a **job descr
 
 | Role | Model ID |
 |------|----------|
-| Semantic Similarity | [`0xnbk/nbk-ats-semantic-v1-en`](https://huggingface.co/0xnbk/nbk-ats-semantic-v1-en) |
-| Named Entity Recognition | [`yashpwr/resume-ner-bert-v2`](https://huggingface.co/yashpwr/resume-ner-bert-v2) |
+| Semantic Similarity | [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) |
+| Resume and job-description entities | [`yashpwr/resume-ner-bert-v2`](https://huggingface.co/yashpwr/resume-ner-bert-v2) |
 
 ---
 
@@ -71,12 +71,22 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-> **Note:** First run will automatically download the HuggingFace models (~1–2 GB total).
+> **Note:** First run downloads the HuggingFace models (roughly 500 MB total); subsequent runs use the local cache.
 > Models are cached locally at `~/.cache/huggingface/hub/`.
 
 ---
 
 ## Usage
+
+### Run the web application
+
+```bash
+python app.py
+```
+
+Then open **http://127.0.0.1:8000** in your browser. Keep the terminal open while using the app; stop the server with `Ctrl+C`.
+
+> Running `python ats_gap_analyzer.py` starts a command-line demo, not the web server.
 
 ### Run the built-in end-to-end demo
 
@@ -84,7 +94,7 @@ pip install -r requirements.txt
 python ats_gap_analyzer.py
 ```
 
-This runs two demos:
+This runs two command-line demos:
 1. **Plain-text resume** analysis
 2. **Mock PDF BytesIO stream** analysis
 
@@ -211,6 +221,10 @@ Where:
 ```
 Resume ATS Checker/
 ├── ats_gap_analyzer.py   # Main module: ATSGapAnalyzer class + main() demo
+├── app.py                # FastAPI web application
 ├── requirements.txt      # Python dependencies
-└── README.md             # This file
+├── README.md             # This file
+├── PROJECT_REPORT.md     # Issue and solution log
+├── tests/                # Unit tests
+└── static/               # Web UI assets (HTML, CSS, JavaScript)
 ```
