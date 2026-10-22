@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Resume ATS Gap Analyzer | AI-Powered Matching</title>
+  <meta name="description" content="Production-grade AI ATS Resume and Job Description Gap Analyzer with semantic similarity and named entity extraction." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="background-glow top-left"></div>
+  <div class="background-glow bottom-right"></div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-group">
+        <div class="logo-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <path d="M9 15l2 2 4-4"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="logo-title">ATS<span class="gradient-text">Lens</span></h1>
+          <p class="logo-subtitle">AI-Powered Resume Gap & Compatibility Analyzer</p>
+        </div>
+      </div>
+      <div class="header-badges">
+        <span class="pill-badge"><span class="dot green"></span> Transformer NER</span>
+        <span class="pill-badge"><span class="dot blue"></span> Semantic Embeddings</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace Grid -->
+    <main class="workspace-grid">
+      <!-- Input Panel -->
+      <section class="card input-card">
+        <h2 class="section-title">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+          Provide Inputs
+        </h2>
+
+        <!-- Resume Input Section -->
+        <div class="input-block">
+          <div class="tabs-header">
+            <span class="field-label">1. Candidate Resume</span>
+            <div class="tab-toggle">
+              <button type="button" class="tab-btn active" id="tabUploadBtn" onclick="switchResumeTab('upload')">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                PDF Upload
+              </button>
+              <button type="button" class="tab-btn" id="tabTextBtn" onclick="switchResumeTab('text')">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                Paste Text
+              </button>
+            </div>
+          </div>
+
+          <!-- PDF Upload Zone -->
+          <div id="uploadZone" class="drop-zone" onclick="document.getElementById('resumeFileInput').click()">
+            <input type="file" id="resumeFileInput" accept=".pdf,.txt" style="display: none;" onchange="handleFileSelected(this)" />
+            <div class="drop-icon">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
+                <path d="M12 12v9"></path>
+                <path d="m16 16-4-4-4 4"></path>
+              </svg>
+            </div>
+            <p class="drop-main-text" id="dropFileName">Drag and drop your <strong>Resume PDF</strong> here or <span class="highlight">browse</span></p>
+            <p class="drop-sub-text">Supported: PDF (up to 15MB) or plain text</p>
+          </div>
+
+          <!-- Paste Text Zone -->
+          <div id="textZone" class="text-zone hidden">
+            <textarea id="resumeTextInput" placeholder="Paste full resume text content here...&#10;e.g. Experience, Skills, Education..."></textarea>
+          </div>
+        </div>
+
+        <!-- Job Description Input Section -->
+        <div class="input-block">
+          <div class="field-header">
+            <label class="field-label" for="jdTextInput">2. Target Job Description (JD)</label>
+            <button type="button" class="sample-btn" onclick="loadSampleData()">Use Sample Data</button>
+          </div>
+          <textarea id="jdTextInput" placeholder="Paste the target job description here...&#10;Include required skills, qualifications, tech stack, and responsibilities..."></textarea>
+        </div>
+
+        <!-- Action Button -->
+        <button id="analyzeBtn" class="cta-btn" onclick="runAnalysis()">
+          <span class="btn-text">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            Analyze Compatibility & Gaps
+          </span>
+          <span class="spinner hidden" id="loadingSpinner"></span>
+        </button>
+      </section>
+
+      <!-- Results Display Panel -->
+      <section class="card results-card" id="resultsCard">
+        <!-- Initial Blank State -->
+        <div class="blank-state" id="blankState">
+          <div class="blank-icon">
+            <svg width="56" height="56" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+          </div>
+          <h3>Awaiting Analysis</h3>
+          <p>Upload a resume and paste a target job description on the left, then click <strong>Analyze Compatibility</strong> to evaluate semantic fit and find missing skills.</p>
+        </div>
+
+        <!-- Loading State -->
+        <div class="loading-state hidden" id="analysisLoading">
+          <div class="pulsing-radar">
+            <div class="pulse-ring"></div>
+            <div class="pulse-ring delay"></div>
+            <div class="radar-center">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+              </svg>
+            </div>
+          </div>
+          <h3 id="loadingStatusText">Extracting Entities & Calculating Embeddings…</h3>
+          <p class="loading-hint">Running neural NER BERT model and semantic similarity engine.</p>
+        </div>
+
+        <!-- Actual Results View -->
+        <div class="results-content hidden" id="resultsContent">
+          <!-- Top Score Overview Grid -->
+          <div class="score-overview">
+            <div class="score-dial-card">
+              <div class="dial-container">
+                <svg class="circular-chart" viewBox="0 0 36 36">
+                  <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                  <path id="scoreCirclePath" class="circle" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                  <text x="18" y="20.5" class="percentage" id="scoreText">0%</text>
+                </svg>
+              </div>
+              <div class="score-meta">
+                <div class="score-label">Semantic ATS Match</div>
+                <div class="score-tag" id="scoreTag">Evaluating</div>
+              </div>
+            </div>
+
+            <div class="metrics-grid">
+              <div class="metric-box">
+                <span class="metric-num text-danger" id="metricMissingSkills">0</span>
+                <span class="metric-name">Missing Skills</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-num text-success" id="metricMatchedSkills">0</span>
+                <span class="metric-name">Matched Skills</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-num text-info" id="metricResumeTotal">0</span>
+                <span class="metric-name">Resume Entities</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-num text-warning" id="metricJdTotal">0</span>
+                <span class="metric-name">JD Targets</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabbed Entity Details -->
+          <div class="entity-section">
+            <div class="details-tab-bar">
+              <button class="detail-tab active" onclick="showEntityCategory('gaps')">Critical Gaps</button>
+              <button class="detail-tab" onclick="showEntityCategory('skills')">Skills Breakdown</button>
+              <button class="detail-tab" onclick="showEntityCategory('designations')">Titles & Roles</button>
+              <button class="detail-tab" onclick="showEntityCategory('degrees')">Education & Degrees</button>
+              <button class="detail-tab" onclick="showEntityCategory('rawJson')">Raw JSON</button>
+            </div>
+
+            <!-- Tab: Gaps View -->
+            <div id="tabViewGaps" class="tab-pane active">
+              <div class="section-notice warning">
+                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                <span>Add these missing entities to your resume to increase keyword match rates.</span>
+              </div>
+
+              <div class="gap-cluster">
+                <h4>Missing Skills from Job Description</h4>
+                <div class="tag-cloud" id="missingSkillsCloud"></div>
+              </div>
+
+              <div class="gap-cluster">
+                <h4>Missing Titles / Designations</h4>
+                <div class="tag-cloud" id="missingTitlesCloud"></div>
+              </div>
+
+              <div class="gap-cluster">
+                <h4>Missing Degrees / Qualifications</h4>
+                <div class="tag-cloud" id="missingDegreesCloud"></div>
+              </div>
+            </div>
+
+            <!-- Tab: Skills Comparison -->
+            <div id="tabViewSkills" class="tab-pane hidden">
+              <div class="comparison-split">
+                <div class="split-col">
+                  <h4>Found in Resume (<span id="countResumeSkills">0</span>)</h4>
+                  <div class="tag-cloud" id="resumeSkillsCloud"></div>
+                </div>
+                <div class="split-col">
+                  <h4>Required by Job (<span id="countJdSkills">0</span>)</h4>
+                  <div class="tag-cloud" id="jdSkillsCloud"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab: Designations Comparison -->
+            <div id="tabViewDesignations" class="tab-pane hidden">
+              <div class="comparison-split">
+                <div class="split-col">
+                  <h4>Resume Titles</h4>
+                  <div class="tag-cloud" id="resumeTitlesCloud"></div>
+                </div>
+                <div class="split-col">
+                  <h4>Job Titles</h4>
+                  <div class="tag-cloud" id="jdTitlesCloud"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab: Degrees Comparison -->
+            <div id="tabViewDegrees" class="tab-pane hidden">
+              <div class="comparison-split">
+                <div class="split-col">
+                  <h4>Resume Education</h4>
+                  <div class="tag-cloud" id="resumeDegreesCloud"></div>
+                </div>
+                <div class="split-col">
+                  <h4>Job Requirements</h4>
+                  <div class="tag-cloud" id="jdDegreesCloud"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tab: Raw JSON -->
+            <div id="tabViewRawJson" class="tab-pane hidden">
+              <pre class="json-viewer" id="rawJsonViewer"></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

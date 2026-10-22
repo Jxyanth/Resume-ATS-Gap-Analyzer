@@ -1,0 +1,26 @@
+# ─── Resume ATS Gap Analyzer – Dependencies ───────────────────────────────────
+# Core ML / NLP frameworks
+sentence-transformers>=2.7.0
+transformers>=4.40.0
+torch>=2.2.0
+
+# PDF text extraction
+PyPDF2>=3.0.0
+
+# Numerical computing (required by sentence-transformers & cosine similarity)
+numpy>=1.26.0
+
+# HuggingFace hub utilities (model downloading)
+huggingface-hub>=0.23.0
+
+# Tokenizers (fast HuggingFace tokenizers, required by transformers)
+tokenizers>=0.19.0
+
+# Accelerate (optional, speeds up inference on supported hardware)
+accelerate>=0.30.0
+
+# Sentencepiece (required by some tokenizer variants)
+sentencepiece>=0.2.0
+
+# Protobuf (required for sentencepiece on some platforms)
+protobuf>=4.25.0
