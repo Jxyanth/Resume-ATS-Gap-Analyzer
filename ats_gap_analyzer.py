@@ -295,6 +295,51 @@ def _cosine_similarity(u: np.ndarray, v: np.ndarray) -> float:
     return float(np.dot(u, v) / (norm_u * norm_v))
 
 
+class _KeywordEncoder:
+    """Lightweight lexical encoder used when the remote semantic model is unavailable."""
+
+    def __init__(self, model_id: Optional[str] = None, device: str = "cpu") -> None:
+        self._model_id = model_id or SEMANTIC_MODEL_ID
+        self._device = device
+
+    def encode(
+        self,
+        texts: List[str],
+        convert_to_numpy: bool = True,
+        **kwargs: Any,
+    ) -> np.ndarray:
+        """Build a simple term-frequency vector representation for each text."""
+        text_list = [str(text) for text in texts]
+        if not text_list:
+            return np.empty((0, 0), dtype=np.float32)
+
+        vocab: List[str] = []
+        doc_term_counts: List[Dict[str, float]] = []
+        for text in text_list:
+            tokens = re.findall(r"[a-zA-Z0-9][a-zA-Z0-9+.#/-]*", text.lower())
+            counts: Dict[str, float] = {}
+            for token in tokens:
+                if len(token) < 2:
+                    continue
+                counts[token] = counts.get(token, 0.0) + 1.0
+            doc_term_counts.append(counts)
+            vocab.extend(counts.keys())
+
+        vocab = sorted(set(vocab))
+        vectors: List[np.ndarray] = []
+        for counts in doc_term_counts:
+            vector = np.zeros(len(vocab), dtype=np.float32)
+            for index, term in enumerate(vocab):
+                vector[index] = counts.get(term, 0.0)
+            norm = float(np.linalg.norm(vector))
+            if norm > 0.0:
+                vector /= norm
+            vectors.append(vector)
+
+        matrix = np.vstack(vectors)
+        return matrix if convert_to_numpy else [vector.tolist() for vector in vectors]
+
+
 # ─── Semantic Model Fallback Wrapper ─────────────────────────────────────────
 
 
@@ -457,11 +502,16 @@ class ATSGapAnalyzer:
                     )
                     logger.info("Semantic model loaded via AutoModel fallback encoder.")
                 except Exception as fallback_exc:
-                    raise RuntimeError(
-                        f"Failed to load semantic model '{SEMANTIC_MODEL_ID}' "
-                        f"via both SentenceTransformer ({st_error}) "
-                        f"and AutoModel fallback ({fallback_exc})."
-                    ) from fallback_exc
+                    logger.warning(
+                        "Semantic model loading failed through both SentenceTransformer "
+                        "(%s) and AutoModel fallback (%s). Using lightweight lexical fallback.",
+                        st_error,
+                        fallback_exc,
+                    )
+                    self._semantic_model = _KeywordEncoder(
+                        SEMANTIC_MODEL_ID, device=self._device
+                    )
+                    logger.info("Semantic model loaded via keyword fallback encoder.")
         return self._semantic_model
 
     def _get_ner_pipeline(self):
@@ -685,6 +735,100 @@ class ATSGapAnalyzer:
 
     # ── Public: Gap Analysis ───────────────────────────────────────────────────
 
+    def _extract_entities_fallback(self, text: str) -> Dict[str, List[str]]:
+        """Use a lightweight lexical fallback when the NER model is unavailable."""
+        lowered = _clean_text(text).lower()
+        categories: Dict[str, Set[str]] = {
+            "skills": set(),
+            "designations": set(),
+            "degrees": set(),
+            OTHER_CATEGORY: set(),
+        }
+
+        skill_terms = {
+            "python",
+            "sql",
+            "machine learning",
+            "deep learning",
+            "natural language processing",
+            "nlp",
+            "pytorch",
+            "tensorflow",
+            "scikit-learn",
+            "pandas",
+            "numpy",
+            "spark",
+            "apache spark",
+            "docker",
+            "kubernetes",
+            "aws",
+            "azure",
+            "gcp",
+            "fastapi",
+            "flask",
+            "rest api",
+            "ci/cd",
+            "git",
+            "postgresql",
+            "redis",
+            "airflow",
+            "dbt",
+            "mlflow",
+            "prompt engineering",
+            "vector database",
+            "linux",
+            "bash",
+            "javascript",
+            "java",
+            "typescript",
+            "node.js",
+            "react",
+            "html",
+            "css",
+            "mongodb",
+            "hadoop",
+        }
+        designation_terms = {
+            "senior",
+            "junior",
+            "lead",
+            "principal",
+            "manager",
+            "director",
+            "engineer",
+            "developer",
+            "data scientist",
+            "machine learning engineer",
+            "software engineer",
+            "analyst",
+            "specialist",
+            "architect",
+        }
+        degree_terms = {
+            "associate degree",
+            "bachelor",
+            "bachelor's degree",
+            "master",
+            "master's degree",
+            "phd",
+            "doctorate",
+            "computer science",
+        }
+
+        for term in sorted(skill_terms, key=len, reverse=True):
+            if term in lowered:
+                categories["skills"].add(term)
+
+        for term in sorted(designation_terms, key=len, reverse=True):
+            if term in lowered:
+                categories["designations"].add(term)
+
+        for term in sorted(degree_terms, key=len, reverse=True):
+            if term in lowered:
+                categories["degrees"].add(term)
+
+        return {cat: sorted(values) for cat, values in categories.items()}
+
     def compute_gaps(
         self,
         resume_entities: Dict[str, List[str]],
@@ -786,10 +930,24 @@ class ATSGapAnalyzer:
 
         # Step 3 – NER entity extraction
         logger.info("Step 3/4 → Extracting entities from resume …")
-        resume_entities = self.extract_entities(resume_text)
+        try:
+            resume_entities = self.extract_entities(resume_text)
+        except Exception as exc:
+            logger.warning(
+                "Resume entity extraction failed; using lexical fallback (%s)",
+                exc,
+            )
+            resume_entities = self._extract_entities_fallback(resume_text)
 
         logger.info("Step 3/4 → Extracting entities from job description …")
-        jd_entities = self.extract_entities(jd_text_cleaned)
+        try:
+            jd_entities = self.extract_entities(jd_text_cleaned)
+        except Exception as exc:
+            logger.warning(
+                "Job description entity extraction failed; using lexical fallback (%s)",
+                exc,
+            )
+            jd_entities = self._extract_entities_fallback(jd_text_cleaned)
 
         # Step 4 – Gap analysis
         logger.info("Step 4/4 → Computing entity gaps …")
